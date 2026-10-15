@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cbpipe"
+version = "0.10.0"
+description = "Schema-unified pipeline producing cooperation-behavior data for RL, agent-based simulation and behavioral digital twins"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "Kazutaka Hayashi"}]
+requires-python = ">=3.9"
+dependencies = ["numpy", "pandas", "pyarrow", "scikit-learn", "networkx", "pyyaml"]
+
+[project.optional-dependencies]
+rl = ["gymnasium"]
+abm = ["mesa"]
+test = ["pytest"]
+
+[project.scripts]
+cbpipe = "cbpipe.cli:main"
+
+[tool.setuptools]
+packages = ["cbpipe"]

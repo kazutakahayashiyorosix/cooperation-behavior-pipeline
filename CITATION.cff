@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the preprint below."
+title: "cbpipe: a schema-unified pipeline for cooperation-behavior data"
+authors:
+  - family-names: Hayashi
+    given-names: Kazutaka
+    affiliation: "YOROSIX, Osaka, Japan"
+    orcid: "https://orcid.org/0009-0007-0052-0718"
+version: 0.10.0
+license: MIT
+repository-code: "https://github.com/kazutakahayashiyorosix/cooperation-behavior-pipeline"
+preferred-citation:
+  type: article
+  title: "A Schema-Unified Pipeline for Producing Cooperation-Behavior Data Consumable by Physical AI, Social Simulation, and Behavioral Digital Twins"
+  authors:
+    - family-names: Hayashi
+      given-names: Kazutaka
+  year: 2026
+  doi: "10.5281/zenodo.20918294"
+  notes: "Preprint"
