@@ -54,7 +54,8 @@ def cmd_validate(cfg, df):
     print(f"P1 non-action majority: {data['P1_nonaction_majority']['pass']}")
     print(f"P2 context dependence:  {data['P2_context_effective']['pass']}")
     print(f"P3 label independence:  {p3['pass']} (same-cluster AUC {p3['same_cluster_auc']:.3f})")
-    print(f"full-model AUC:         {data['full_model_auc']:.4f}")
+    print(f"full-model AUC:         {data['full_model_auc']:.4f} (logistic)")
+    print(f"gradient-boosted AUC:   {data['gbm_auc']:.4f}")
     print(f"exporters: physical_ai learnable={exp['physical_ai']['learnable']}, "
           f"social_sim reproduced={exp['social_sim']['reproduced']}, "
           f"bdt counterfactual direction={exp['bdt']['direction_correct']}")

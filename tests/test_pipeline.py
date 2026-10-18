@@ -40,6 +40,15 @@ def test_three_data_properties(small):
     assert r["P3_label_independent"]["pass"]
 
 
+def test_gbm_auc_reported(small):
+    # On the small world the generator is close to logistic, so boosted trees do not beat
+    # the logistic model; we check that the AUC is reported, sane, and close to logistic.
+    _, _, df = small
+    r = run_data_protocols(df)
+    assert 0.75 < r["gbm_auc"] <= 1.0
+    assert abs(r["gbm_auc"] - r["full_model_auc"]) < 0.05
+
+
 def test_counterfactual_raises_action_rate(small):
     cfg, world, df = small
     cf = events_to_frame(world.generate(0.3))

@@ -10,6 +10,7 @@ from .export_bdt import bdt_sanity
 
 import numpy as np
 import pandas as pd
+from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score
@@ -31,6 +32,11 @@ def run_data_protocols(df: pd.DataFrame):
     sc = StandardScaler(); X = sc.fit_transform(df[scols])
     lr = LogisticRegression(max_iter=2000, class_weight="balanced").fit(X[trm], y[trm])
     auc = roc_auc_score(y[tem], lr.predict_proba(X[tem])[:, 1])
+
+    # Gradient-boosted trees on the same leakage-free features and the same request-level split.
+    Xr = df[scols].to_numpy()
+    gb = HistGradientBoostingClassifier(random_state=0).fit(Xr[trm], y[trm])
+    gb_auc = roc_auc_score(y[tem], gb.predict_proba(Xr[tem])[:, 1])
 
     # P1
     bal = y.mean()
@@ -54,6 +60,7 @@ def run_data_protocols(df: pd.DataFrame):
         "P2_context_effective": {"pass": bool(p2)},
         "P3_label_independent": {"same_cluster_auc": float(a), "pass": bool(p3)},
         "full_model_auc": float(auc),
+        "gbm_auc": float(gb_auc),
     }
 
 
