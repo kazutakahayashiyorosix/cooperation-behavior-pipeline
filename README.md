@@ -65,8 +65,11 @@ print(twin.counterfactual(aid, {"req_urgency": 0.5, "tie_strength": 0.6}))
 | Non-action share (P1) | 68.8% |
 | Same-cluster-only AUC (P3) | 0.577 |
 | Leakage-free logistic model AUC | 0.840 |
+| Leakage-free gradient-boosted (HistGradientBoosting) AUC | 0.846 |
 | Counterfactual urgency +0.3 | action rate 31.2% to 37.4% |
 | Exporter sanity checks | all pass |
+
+Both models use the same state features and the same request-level held-out split. On small worlds (for example 600 members, 300 posts) the logistic model matches or slightly beats the boosted trees, because the generator is close to logistic and the training set is small.
 
 These numbers describe the synthetic world, whose generator is built to have these properties. They show that the pipeline preserves the properties end to end; they are not claims about real human behavior.
 
