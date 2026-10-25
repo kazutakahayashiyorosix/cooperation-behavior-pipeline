@@ -1,43 +1,43 @@
 """
 core/schema.py
 ========================================================
-標準行動イベントスキーマ — 全ダウンストリーム用途の唯一の源。
+Standard behavior-event schema -- the single source for every downstream use.
 
-フィジカルAI / ソーシャルシミュ / BDT は、すべてこの BehaviorEvent
-テーブルから派生する。スキーマを1箇所に固定することで、3用途が
-同じパイプラインから出力できる(= データパイプラインを永久資産にする)。
+Physical AI / social simulation / BDT are all derived from this BehaviorEvent
+table. Fixing the schema in one place lets all three uses be produced
+from the same pipeline (= the data pipeline becomes a permanent asset).
 
-リーク防止の不変条件:
-  state_features は必ず timestamp 以前の情報のみ。
-  outcome(response/thanks) は行動の「下流」であり、特徴量には絶対に入れない。
+Leak-prevention invariant:
+  state_features contain only information from before the timestamp.
+  outcome (response/thanks) is downstream of the action and must never be a feature.
 """
 
 from dataclasses import dataclass, field, asdict
 from typing import Optional, List
 import pandas as pd
 
-# 行動の語彙(全用途共通)
+# Action vocabulary (shared by all uses)
 ACTIONS = ["none", "reply", "share"]
 ACTION_TO_ID = {a: i for i, a in enumerate(ACTIONS)}
 
 
-# state_features に入れてよい列(露出時点で観測可能・リーク無し)
+# Columns allowed in state_features (observable at exposure time, leak-free)
 STATE_FEATURE_COLS = [
-    # 人物固有(時間非依存)
+    # Person-specific (time-invariant)
     "u_influence", "u_latent_coop", "u_activity", "u_netpos",
     "u_sens_urgency", "u_sens_tie", "u_sens_time", "u_sens_load",
-    # T以前の累積行動
+    # Cumulative behavior before T
     "past_shares", "past_replies", "past_exposures", "past_conversion",
     "past_act_this_topic", "topic_recency_h", "topic_affinity",
-    # リクエスト文脈
+    # Request context
     "req_urgency", "req_text_quality", "time_match", "topic_fit",
-    # ネットワーク関係
+    # Network relations
     "tie_strength", "same_cluster",
 ]
 
-# state_features に入れてはいけない列(下流・リーク源)
+# Columns that must NOT be in state_features (downstream / leak sources)
 FORBIDDEN_IN_STATE = [
-    "past_thx_received", "past_thx_given",   # thanks は行動の下流
+    "past_thx_received", "past_thx_given",   # thanks are downstream of the action
     "outcome_response", "outcome_thanks",
     "action", "label_act",
 ]
@@ -45,50 +45,50 @@ FORBIDDEN_IN_STATE = [
 
 @dataclass
 class BehaviorEvent:
-    """単一の行動イベント。全用途がこれを変換して使う。"""
+    """A single behavior event. Every use converts and consumes this."""
     event_id: int
     timestamp: str
     actor_id: int
     request_id: int
-    # 状況(行動直前・リーク無し)
+    # Situation (just before the action, leak-free)
     state: dict
-    # 行動(type)
+    # Action (type)
     action: str                      # none | reply | share
-    # --- 多次元アクション(行動の中身。none のときは既定値) ---
-    intensity: float = 0.0           # コミット度 0..1 (「やる」vs「できるかも」)
-    content_topic: int = -1          # 返信の内容カテゴリ(どんな助けか)
-    speed: float = 0.0               # 応答の速さ 0..1(速い=熱量の代理)
-    effort: float = 0.0              # 返信の具体性/長さスコア 0..1
-    # 下流の結果(因果順で行動の後)
-    outcome_response: int = 0        # 依頼者から応答があったか
-    outcome_thanks: int = 0          # thanks を受け取ったか
-    # ネットワーク文脈
+    # --- Multi-dimensional action (the content of the action; defaults when none) ---
+    intensity: float = 0.0           # commitment 0..1 ("I'll do it" vs "maybe I can")
+    content_topic: int = -1          # content category of the reply (what kind of help)
+    speed: float = 0.0               # response speed 0..1 (fast = proxy for enthusiasm)
+    effort: float = 0.0              # specificity/length score of the reply 0..1
+    # Downstream outcomes (after the action in causal order)
+    outcome_response: int = 0        # whether the requester responded
+    outcome_thanks: int = 0          # whether thanks were received
+    # Network context
     tie_strength: float = 0.0
     netpos: float = 0.0
     cluster_id: int = -1
 
     def validate(self):
-        """リーク不変条件をチェック。"""
+        """Check the leak invariant."""
         for f in FORBIDDEN_IN_STATE:
             if f in self.state:
-                raise ValueError(f"LEAK: '{f}' は state に含めてはいけない")
+                raise ValueError(f"LEAK: '{f}' must not be in state")
         if self.action not in ACTIONS:
             raise ValueError(f"unknown action: {self.action}")
-        # 多次元アクションの整合性: none のときは中身ゼロ
+        # Multi-dimensional action consistency: content must be zero when action is none
         if self.action == "none" and (self.intensity > 0 or self.effort > 0):
-            raise ValueError("non-action なのに intensity/effort が非ゼロ")
+            raise ValueError("non-action but intensity/effort is non-zero")
         return True
 
 
 def events_to_frame(events: List[BehaviorEvent]) -> pd.DataFrame:
-    """BehaviorEvent のリストを平坦な DataFrame に。"""
+    """Convert a list of BehaviorEvent into a flat DataFrame."""
     rows = []
     for e in events:
         row = {
             "event_id": e.event_id, "timestamp": e.timestamp,
             "actor_id": e.actor_id, "request_id": e.request_id,
             "action": e.action, "action_id": ACTION_TO_ID[e.action],
-            # 多次元アクション
+            # Multi-dimensional action
             "act_intensity": e.intensity, "act_content_topic": e.content_topic,
             "act_speed": e.speed, "act_effort": e.effort,
             "outcome_response": e.outcome_response,
@@ -103,12 +103,12 @@ def events_to_frame(events: List[BehaviorEvent]) -> pd.DataFrame:
 
 
 def state_columns(df: pd.DataFrame) -> List[str]:
-    """DataFrame から state__ 接頭辞の列を返す。"""
+    """Return the columns of a DataFrame that have the state__ prefix."""
     return [c for c in df.columns if c.startswith("state__")]
 
 
 def assert_no_leak(df: pd.DataFrame):
-    """DataFrame レベルでリーク列が state に混入してないか検査。"""
+    """Check at DataFrame level that no leak column has slipped into the state."""
     for c in state_columns(df):
         bare = c.replace("state__", "")
         if bare in FORBIDDEN_IN_STATE:

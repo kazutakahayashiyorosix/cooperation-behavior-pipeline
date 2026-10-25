@@ -1,17 +1,17 @@
 """
 exporters/bdt.py
 ========================================================
-行動デジタルツイン(BDT)向けエクスポータ。
+Exporter for Behavioral Digital Twins (BDT).
 
-出力:
-  - digital_twins.pkl : 個人別の「状況→行動分布」モデル群
-  - twin_api.py       : twin_query(actor_id, context) を提供
+Outputs:
+  - digital_twins.pkl : per-person "situation -> action distribution" models
+  - twin_api.py       : provides twin_query(actor_id, context)
 
-設計:
-  - 全体モデル(GBDT)を基底とし、個人の潜在パラメータ(sens_*, latent_coop)
-    を state に含めることで「個人ごとに状況→行動分布」を表現
-  - 1 actor = 1 twin。context を入れると P(none/reply/share) を返す
-  - 反実仮想クエリ対応(urgency を変えたら行動分布がどう動くか)
+Design:
+  - A global model (GBDT) is the base; individual latent parameters (sens_*, latent_coop)
+    are included in the state, so each person gets their own situation -> action distribution
+  - 1 actor = 1 twin. Given a context it returns P(none/reply/share)
+  - Supports counterfactual queries (how the action distribution moves when urgency changes)
 """
 from .schema import assert_no_leak, state_columns
 
@@ -25,16 +25,16 @@ def bdt_export(df: pd.DataFrame, cfg: dict, out_dir: str):
     assert_no_leak(df)
     scols = state_columns(df)
 
-    # 多クラス(none/reply/share)を1つの基底モデルで学習。
-    # 個人差は state に含まれる sens_*/latent_coop が担う = ツインの個性。
+    # Train multi-class (none/reply/share) with a single base model.
+    # Individual differences are carried by sens_*/latent_coop in the state = the twin's personality.
     X = df[scols].values
     y = df["action_id"].values  # 0/1/2
     base = HistGradientBoostingClassifier(
         max_iter=400, learning_rate=0.05, max_depth=8,
         l2_regularization=1.0).fit(X, y)
 
-    # --- 多次元アクション予測ヘッド(行動した人のみで学習) ---
-    # 「行動するか」だけでなく「どんな強度・労力の返信か」まで返すツイン
+    # --- Multi-dimensional action prediction heads (trained on actors who acted only) ---
+    # The twin returns not only *whether* someone acts but also the intensity/effort of the reply
     from sklearn.ensemble import HistGradientBoostingRegressor
     acted = df[df["action"] != "none"]
     intensity_head = effort_head = speed_head = None
@@ -47,7 +47,7 @@ def bdt_export(df: pd.DataFrame, cfg: dict, out_dir: str):
         speed_head = HistGradientBoostingRegressor(
             max_iter=300, learning_rate=0.05, max_depth=6).fit(Xa, acted["act_speed"].values)
 
-    # 個人の固定属性テーブル(twin の素性)
+    # Per-person fixed-attribute table (the twin's identity features)
     fixed_cols = [c for c in scols if c.startswith("state__u_")]
     twin_profiles = (df.groupby("actor_id")[fixed_cols].first().to_dict("index"))
 
@@ -96,7 +96,7 @@ class TwinRegistry:
         x = self._vec(actor_id, context)
         p = self.m.predict_proba(x)[0]
         out = {"action_dist": dict(zip(self.classes, p.tolist()))}
-        # 行動したらどんな返信か(強度・労力・速さ)
+        # If the actor acts, what kind of reply (intensity, effort, speed)
         if self.ih is not None:
             out["if_acted"] = {
                 "intensity": float(self.ih.predict(x)[0]),
@@ -119,7 +119,7 @@ class TwinRegistry:
 
 
 def bdt_sanity(df: pd.DataFrame, cfg: dict, out_dir: str):
-    """反実仮想チェック: ツインに urgency+Δ を入れたら share 確率が上がるか。"""
+    """Counterfactual check: does share probability rise when urgency+delta is fed to the twin?"""
     import pickle
     b = pickle.load(open(f"{out_dir}/digital_twins.pkl", "rb"))
     m = b["base_model"]; order = b["feature_order"]
@@ -137,7 +137,7 @@ def bdt_sanity(df: pd.DataFrame, cfg: dict, out_dir: str):
             "direction_correct": bool(p_cf > p_base)}
 
 
-# === ノートブック内で使える TwinRegistry（twin_api.py と同じ実装） ===
+# === TwinRegistry usable inside a notebook (same implementation as twin_api.py) ===
 class TwinRegistry:
     def __init__(self, path):
         b = pickle.load(open(path, "rb"))

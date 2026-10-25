@@ -1,16 +1,16 @@
 """
 exporters/social_sim.py
 ========================================================
-ソーシャルシミュレーション(ABM / Mesa)向けエクスポータ。
+Exporter for social simulation (ABM / Mesa).
 
-出力:
-  - agent_policies.json : 各エージェントの行動確率モデル係数(個人別)
-  - init_network.graphml: 初期ネットワーク(クラスタ + bridge エッジ)
-  - mesa_model.py       : Mesa 互換の最小モデル(政策を読んで時間発展)
+Outputs:
+  - agent_policies.json : per-agent action-probability model coefficients
+  - init_network.graphml: initial network (clusters + bridge edges)
+  - mesa_model.py       : minimal Mesa-compatible model (reads policies and steps forward in time)
 
-設計:
-  - 各エージェントの行動を、state→P(share) のロジスティック係数として要約
-  - シミュレータはこの係数で確率的に行動を再生 → 生成元の統計を再現できる
+Design:
+  - Summarize each agent's behavior as logistic coefficients for state -> P(share)
+  - The simulator replays actions stochastically with these coefficients -> reproduces the source statistics
 """
 from .schema import assert_no_leak, state_columns
 
@@ -25,7 +25,7 @@ def social_sim_export(df: pd.DataFrame, cfg: dict, out_dir: str, world=None):
     assert_no_leak(df)
     scols = state_columns(df)
 
-    # 全体ポリシー(共有の基底)+ クラスタ別の補正を係数として保存
+    # Store a global policy (shared base) plus per-cluster corrections as coefficients
     X = df[scols].values
     y = (df["action"] == "share").astype(int).values
     base = LogisticRegression(max_iter=2000).fit(X, y)
@@ -49,22 +49,22 @@ def social_sim_export(df: pd.DataFrame, cfg: dict, out_dir: str, world=None):
     with open(f"{out_dir}/agent_policies.json", "w") as f:
         json.dump(policies, f, indent=2)
 
-    # 初期ネットワーク
+    # Initial network
     G = nx.Graph()
     if world is not None:
         for c, members in world.cluster_members.items():
             members = list(members)
             for i in range(len(members)):
                 G.add_node(int(members[i]), cluster=int(c))
-                # クラスタ内リング + 一部ランダム
+                # Ring within each cluster + some random edges
                 G.add_edge(int(members[i]), int(members[(i + 1) % len(members)]))
-        # bridge 同士を繋ぐ
+        # Connect bridges to each other
         br = list(world.bridges)
         for i in range(len(br)):
             G.add_edge(int(br[i]), int(br[(i + 1) % len(br)]))
     else:
-        # world 無し: イベントデータからネットワークを復元
-        # actor を cluster でグルーピングしてクラスタ内リングを張る
+        # No world: reconstruct the network from event data
+        # Group actors by cluster and build a ring within each cluster
         actor_cluster = df.groupby("actor_id")["cluster_id"].first().to_dict()
         from collections import defaultdict
         by_cluster = defaultdict(list)
@@ -76,7 +76,7 @@ def social_sim_export(df: pd.DataFrame, cfg: dict, out_dir: str, world=None):
                 G.add_edge(members[i], members[(i + 1) % len(members)])
     nx.write_graphml(G, f"{out_dir}/init_network.graphml")
 
-    # Mesa モデル stub
+    # Mesa model stub
     stub = '''"""
 Mesa-compatible ABM that replays YOROSIX agent policies.
     from mesa_model import YorosixModel
@@ -123,7 +123,7 @@ class YorosixModel(mesa.Model):
 
 
 def social_sim_sanity(df: pd.DataFrame, cfg: dict, out_dir: str):
-    """再現性チェック: ポリシーで再生した行動率が元データと近いか。"""
+    """Reproducibility check: is the action rate replayed by the policy close to the source data?"""
     pol = json.load(open(f"{out_dir}/agent_policies.json"))
     scols = pol["feature_order"]
     coef = np.array(pol["global"]["coef"]); b = pol["global"]["intercept"]

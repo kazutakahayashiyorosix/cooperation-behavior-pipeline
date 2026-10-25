@@ -1,18 +1,18 @@
 """
 exporters/physical_ai.py
 ========================================================
-フィジカルAI(模倣学習 / オフラインRL)向けエクスポータ。
+Exporter for physical AI (imitation learning / offline RL).
 
-出力:
+Outputs:
   - transitions.parquet : (state, action, reward, next_state, done)
-  - env_stub.py         : Gymnasium 互換の最小 env(SB3 で読める)
+  - env_stub.py         : minimal Gymnasium-compatible env (loadable by SB3)
 
-設計:
-  - 各 actor の時系列イベントを「軌跡(trajectory)」として連結
-  - state = schema の state_features(リーク無し)
-  - action = none/reply/share の離散3
-  - reward = config の reward_* (share に最大報酬)
-  - next_state = 同 actor の次イベントの state(無ければ done=1)
+Design:
+  - Concatenate each actor's time-ordered events into a trajectory
+  - state = the schema's state_features (leak-free)
+  - action = discrete, 3 values: none/reply/share
+  - reward = config reward_* (share gets the largest reward)
+  - next_state = state of the same actor's next event (done=1 if none)
 """
 from .schema import assert_no_leak, state_columns
 
@@ -28,14 +28,14 @@ def physical_ai_export(df: pd.DataFrame, cfg: dict, out_dir: str):
                   "share": rcfg["reward_share"]}
     scols = state_columns(df)
 
-    # actor ごとに時系列ソートして軌跡化(ベクトル化)
+    # Sort each actor's events by time to form trajectories (vectorized)
     df = df.sort_values(["actor_id", "timestamp"]).reset_index(drop=True)
     S = df[scols].to_numpy(dtype=float)
     actor = df["actor_id"].to_numpy()
     act_id = df["action"].map({"none": 0, "reply": 1, "share": 2}).to_numpy()
     rewards = df["action"].map(reward_map).to_numpy()
 
-    # next state = 次行。ただし actor が変わる境界は done=1, ns=0
+    # next state = next row; at boundaries where the actor changes, done=1 and ns=0
     n = len(df)
     NS = np.zeros_like(S)
     done = np.ones(n, dtype=int)
@@ -53,7 +53,7 @@ def physical_ai_export(df: pd.DataFrame, cfg: dict, out_dir: str):
     path = f"{out_dir}/transitions.parquet"
     tdf.to_parquet(path, index=False)
 
-    # Gym env stub (SB3 互換)
+    # Gym env stub (SB3 compatible)
     stub = f'''"""
 Gymnasium-compatible offline env over YOROSIX transitions.
 Usage with Stable-Baselines3 (offline / behavior cloning):
@@ -95,10 +95,10 @@ class YorosixOfflineEnv(gym.Env):
 
 
 def physical_ai_sanity(df: pd.DataFrame, cfg: dict, out_dir: str):
-    """学習可能性チェック: データのポリシー報酬 > ランダムポリシー報酬 か。"""
+    """Learnability check: is the data policy's reward greater than a random policy's reward?"""
     tdf = pd.read_parquet(f"{out_dir}/transitions.parquet")
     data_reward = tdf["reward"].mean()
-    # ランダム行動が一致したときだけ報酬(=env step の仕様)を近似
+    # Approximate reward as given only when the random action matches (= env step semantics)
     rng = np.random.default_rng(0)
     rand_match = (rng.integers(0, 3, len(tdf)) == tdf["action_id"].values)
     rand_reward = (tdf["reward"].values * rand_match).mean()

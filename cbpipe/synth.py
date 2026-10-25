@@ -1,14 +1,14 @@
 """
 core/world.py
 ========================================================
-v8 生成器(3性質)をクラス化し、標準 BehaviorEvent を直接吐く。
+Class-based v8 generator (three properties) that emits standard BehaviorEvents directly.
 
-3性質:
-  (1) 露出 >> 行動  … exposed 全員を候補にし、行動有無を別サンプリング
-  (2) P(行動) = f(人物, 文脈, ネット位置, 状態)
-  (3) ラベル独立 / 因果順 expose -> act -> response -> thanks
+Three properties:
+  (1) exposure >> action  ... every exposed user is a candidate; acting is sampled separately
+  (2) P(action) = f(person, context, network position, state)
+  (3) independent labels / causal order expose -> act -> response -> thanks
 
-state は露出時点で構築(T以前の累積のみ)。リークが構造的に入らない。
+state is built at exposure time (cumulative info before T only), so leaks cannot enter structurally.
 """
 from .schema import BehaviorEvent
 
@@ -53,9 +53,9 @@ class YorosixWorld:
             "sens_time": rng.normal(1.0, 0.4, n),
             "sens_load": rng.uniform(0.5, 1.5, n),
         }
-        # 索引
+        # Indexes
         self.idx = {mid: i for i, mid in enumerate(self.mem["id"])}
-        # クラスタ/bridge
+        # Clusters / bridges
         self.cluster_members = {
             c: self.mem["id"][self.mem["cluster_id"] == c]
             for c in range(self.n_clusters)}
@@ -76,14 +76,14 @@ class YorosixWorld:
         return self.mem[key][self.idx[mid]]
 
     def generate(self, urgency_shift=0.0):
-        """BehaviorEvent のリストを返す。urgency_shift で反実仮想世界。"""
+        """Return a list of BehaviorEvent. urgency_shift gives a counterfactual world."""
         rng = np.random.default_rng(self.seed + (1 if urgency_shift else 0))
         G = self.G
 
-        # 状態(時間発展): 負荷, 個人の過去行動時刻
+        # State (evolves over time): load, each person's past action times
         load = {mid: 0.0 for mid in self.mem["id"]}
         last_t = {mid: self.base_time for mid in self.mem["id"]}
-        # 累積履歴(state構築用): user -> {type -> [times]}, user -> topic -> [times]
+        # Cumulative history (for state construction): user -> {type -> [times]}, user -> topic -> [times]
         hist = defaultdict(lambda: defaultdict(list))
         hist_topic = defaultdict(lambda: defaultdict(list))
         exp_count = defaultdict(int)
@@ -107,11 +107,11 @@ class YorosixWorld:
 
             for u in neigh:
                 if rng.random() >= 0.25 * self._m(u, "activity") + 0.05:
-                    continue  # 露出しない
+                    continue  # not exposed
                 u = int(u)
                 T = post_time + timedelta(minutes=int(rng.integers(1, 120)))
 
-                # --- state を T 以前の情報のみで構築(リーク無し) ---
+                # --- build state from information before T only (leak-free) ---
                 dt_h = (post_time - last_t[u]).total_seconds() / 3600.0
                 load[u] *= np.exp(-dt_h / 12.0)
                 same_c = (self._m(u, "cluster_id") == o_cluster)
@@ -149,7 +149,7 @@ class YorosixWorld:
                     "tie_strength": tie, "same_cluster": int(same_c),
                 }
 
-                # --- 行動サンプリング(真の生成式) ---
+                # --- action sampling (true generating equation) ---
                 z = (G["beta0_share"]
                      + G["w_latent_coop"] * self._m(u, "latent_coop")
                      + G["w_urgency"] * self._m(u, "sens_urgency") * urgency
@@ -167,30 +167,30 @@ class YorosixWorld:
                 did_reply = (not did_share) and (rng.random() < p_reply)
                 action = "share" if did_share else ("reply" if did_reply else "none")
 
-                # --- 多次元アクション(行動した場合のみ意味を持つ) ---
+                # --- multi-dimensional action (meaningful only if the actor acted) ---
                 intensity = content_topic = speed = effort = 0.0
                 content_topic = -1
                 if action != "none":
-                    # intensity: コミット度。緊急度・紐帯・潜在協力性 + ノイズ
-                    #   = 「同じ人でも状況で返信の強さが変わる」(指摘の核)
+                    # intensity: commitment. urgency, tie strength, latent cooperativeness + noise
+                    #   = "the same person replies with different strength depending on the situation" (the key point)
                     z_int = (-1.2
                              + 2.2 * urgency
                              + 1.2 * tie
                              + 0.7 * self._m(u, "latent_coop")
                              + rng.normal(0, 0.4))
                     intensity = float(np.clip(sigmoid(z_int), 0.02, 0.99))
-                    # content_topic: 個人のhome_topic と request topic の混合
+                    # content_topic: mix of the person's home_topic and the request topic
                     content_topic = int(topic if rng.random() < 0.6
                                         else self._m(u, "home_topic"))
-                    # speed: 速さ=熱量。intensity が高いほど速い + ノイズ
+                    # speed: speed = enthusiasm. Higher intensity -> faster, + noise
                     speed = float(np.clip(0.3 + 0.6 * intensity
                                           + rng.normal(0, 0.15), 0.01, 0.99))
-                    # effort: 具体性/長さ。share より reply の方が高くなりやすい
+                    # effort: specificity/length. Replies tend to score higher than shares
                     base_effort = 0.65 if did_reply else 0.35
                     effort = float(np.clip(base_effort * (0.5 + intensity)
                                            + rng.normal(0, 0.12), 0.01, 0.99))
 
-                # --- 下流(因果順) ---
+                # --- downstream (causal order) ---
                 resp = thx = 0
                 if action != "none":
                     if rng.random() < (0.6 if did_reply else 0.4):

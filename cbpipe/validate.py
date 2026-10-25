@@ -1,7 +1,7 @@
 """
 validation/protocols.py
 ========================================================
-データ品質の5プロトコル + 各エクスポータの健全性。
+Five data-quality protocols plus a health check for each exporter.
 """
 from .schema import assert_no_leak, state_columns
 from .export_physical import physical_ai_sanity
@@ -41,7 +41,7 @@ def run_data_protocols(df: pd.DataFrame):
     # P1
     bal = y.mean()
     p1 = bal < 0.5
-    # P3 same_cluster 単独
+    # P3 same_cluster alone
     sccol = "state__same_cluster"
     if sccol in df.columns:
         Xs = sc.fit_transform(df[[sccol]])
@@ -50,7 +50,7 @@ def run_data_protocols(df: pd.DataFrame):
     else:
         a = 0.5
     p3 = a < 0.65
-    # P2 文脈が効いてるか(urgency感受性 or topic_fit)
+    # P2 does context matter (urgency sensitivity or topic_fit)
     coef = dict(zip(scols, lr.coef_[0]))
     p2 = (abs(coef.get("state__req_urgency", 0)) + abs(coef.get("state__u_sens_urgency", 0))
           + abs(coef.get("state__topic_fit", 0))) > 0.05
