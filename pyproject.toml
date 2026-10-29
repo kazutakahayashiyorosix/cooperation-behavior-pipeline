@@ -7,7 +7,7 @@ name = "cbpipe"
 version = "0.10.0"
 description = "Schema-unified pipeline producing cooperation-behavior data for RL, agent-based simulation and behavioral digital twins"
 readme = "README.md"
-license = {text = "MIT"}
+license = {text = "AGPL-3.0-only"}
 authors = [{name = "Kazutaka Hayashi"}]
 requires-python = ">=3.9"
 dependencies = ["numpy", "pandas", "pyarrow", "scikit-learn", "networkx", "pyyaml"]

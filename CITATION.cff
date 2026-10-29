@@ -7,7 +7,7 @@ authors:
     affiliation: "YOROSIX, Osaka, Japan"
     orcid: "https://orcid.org/0009-0007-0052-0718"
 version: 0.10.0
-license: MIT
+license: AGPL-3.0-only
 repository-code: "https://github.com/kazutakahayashiyorosix/cooperation-behavior-pipeline"
 preferred-citation:
   type: article
