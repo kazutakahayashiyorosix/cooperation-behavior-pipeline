@@ -1,5 +1,7 @@
 # cbpipe: cooperation-behavior pipeline
 
+Open research edition (MIT). Contributions and issues are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 `cbpipe` turns records of people helping each other into data that three kinds of downstream system can use directly:
 
 | Consumer | What `cbpipe` exports |

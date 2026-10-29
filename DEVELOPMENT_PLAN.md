@@ -12,4 +12,13 @@ Mark an item done by changing `[ ]` to `[x]` and adding the date.
 - [ ] 6. Documentation: `docs/usage.md` with a worked example for each exporter, `CONTRIBUTING.md`, and an example config file in `examples/`.
 - [ ] 7. Release v0.11.0: bump version in `pyproject.toml`, `cbpipe/__init__.py` and `CITATION.cff`; update README results if numbers changed.
 
+- [ ] 8. Public-data adapter: map @-mention handoffs in GitHub issues (GH Archive) to the event schema, with a small sample built from public data in `examples/`. Gives a real-data example without platform data.
+- [ ] 9. API documentation for the core functions (`docs/api.md`), plus a user-facing design note (`docs/design.md`) explaining the schema, the anti-leakage rule and the P1-P3 checks.
+- [ ] 10. Rewrite `paper/paper.md` in the current JOSS format: summary, statement of need, state of the field (build vs contribute), software design, research impact statement, AI usage disclosure.
+- [ ] 11. Release v0.12.0 and submit to JOSS (not before 2027-04-16, six months after the repository became public).
+
+Schedule: about one item per month, so the public history shows steady development (items 3-4 in Nov-Dec 2026, 5-6 in Jan 2027, 7-8 in Feb 2027, 9 in Mar 2027, 10-11 in Apr 2027).
+
+Scope: this repository is the open research edition of the pipeline and stays under the MIT License.
+
 Rules: never add real platform data, operator account IDs, e-mail addresses or credentials. Do not add code from the quality-gates project.
