@@ -100,4 +100,4 @@ Hayashi, K. (2026). A schema-unified pipeline for producing cooperation-behavior
 
 ## License
 
-Dual-licensed: [AGPL-3.0-only](LICENSE) for research and open-source use, or a [commercial license](COMMERCIAL-LICENSE.md) for proprietary or hosted use without AGPL obligations. Versions up to commit `cb39cad` (before 29 October 2026) remain available under MIT.
+MIT
