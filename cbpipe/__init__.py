@@ -9,7 +9,7 @@ from .ingest import ingest
 from .export_physical import physical_ai_export
 from .export_social import social_sim_export
 from .export_bdt import bdt_export, TwinRegistry
-from .validate import run_data_protocols, run_exporter_checks
+from .validate import run_data_protocols, run_exporter_checks, coefficient_recovery
 from .config import DEFAULT_CONFIG, load_config
 
 __version__ = "0.10.0"

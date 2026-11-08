@@ -16,7 +16,12 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score
 
 
-def run_data_protocols(df: pd.DataFrame):
+def run_data_protocols(df: pd.DataFrame, cfg=None):
+    """Run P1-P3 and the held-out AUCs.
+
+    If `cfg` is given and `df` has the synthetic generator's state features, the result also
+    contains a coefficient-recovery check (see `coefficient_recovery`).
+    """
     assert_no_leak(df)
     scols = state_columns(df)
     df = df.copy()
@@ -55,12 +60,61 @@ def run_data_protocols(df: pd.DataFrame):
     p2 = (abs(coef.get("state__req_urgency", 0)) + abs(coef.get("state__u_sens_urgency", 0))
           + abs(coef.get("state__topic_fit", 0))) > 0.05
 
-    return {
+    out = {
         "P1_nonaction_majority": {"action_rate": float(bal), "pass": bool(p1)},
         "P2_context_effective": {"pass": bool(p2)},
         "P3_label_independent": {"same_cluster_auc": float(a), "pass": bool(p3)},
         "full_model_auc": float(auc),
         "gbm_auc": float(gb_auc),
+    }
+    if cfg is not None and has_recovery_features(df):
+        out["coef_recovery"] = coefficient_recovery(df, cfg)
+    return out
+
+
+# Generating-equation terms that can be rebuilt from state features, paired with the config weight
+# that multiplies them in `YorosixWorld.generate`. The load term is omitted because the decaying
+# load is not part of the state, so its coefficient cannot be recovered from the features.
+RECOVERY_TERMS = {
+    "latent_coop": ("w_latent_coop", lambda d: d["state__u_latent_coop"]),
+    "urgency": ("w_urgency", lambda d: d["state__u_sens_urgency"] * d["state__req_urgency"]),
+    "tie": ("w_tie", lambda d: d["state__u_sens_tie"] * d["state__tie_strength"]),
+    "time": ("w_time", lambda d: d["state__u_sens_time"] * d["state__time_match"]),
+    "netpos": ("w_netpos", lambda d: d["state__u_netpos"]),
+    "topic": ("w_topic", lambda d: d["state__topic_fit"]),
+}
+
+
+RECOVERY_COLUMNS = ["state__u_latent_coop", "state__u_sens_urgency", "state__req_urgency",
+                    "state__u_sens_tie", "state__tie_strength", "state__u_sens_time",
+                    "state__time_match", "state__u_netpos", "state__topic_fit"]
+
+
+def has_recovery_features(df: pd.DataFrame) -> bool:
+    """True if `df` carries the state features needed to rebuild the generating terms."""
+    return all(c in df.columns for c in RECOVERY_COLUMNS)
+
+
+def coefficient_recovery(df: pd.DataFrame, cfg):
+    """Fit a logistic model on the generating-equation terms and compare with the true weights.
+
+    The model is fit unscaled and without class weighting, so its coefficients are on the
+    same scale as the generator's weights (up to attenuation from the omitted load term,
+    the noise term and the share/reply merge). Returns the per-term recovered and true
+    coefficients and their Pearson correlation.
+    """
+    G = cfg["generation"]
+    y = (df["action"] != "none").astype(int).to_numpy()
+    X = np.column_stack([f(df).to_numpy(dtype=float) for _, f in RECOVERY_TERMS.values()])
+    lr = LogisticRegression(C=1e6, max_iter=5000).fit(X, y)
+    rec = lr.coef_[0]
+    true = np.array([float(G[k]) for k, _ in RECOVERY_TERMS.values()])
+    r = float(np.corrcoef(rec, true)[0, 1])
+    return {
+        "terms": list(RECOVERY_TERMS),
+        "recovered": {n: float(c) for n, c in zip(RECOVERY_TERMS, rec)},
+        "true": {n: float(t) for n, t in zip(RECOVERY_TERMS, true)},
+        "correlation": r,
     }
 
 

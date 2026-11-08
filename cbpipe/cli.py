@@ -46,7 +46,7 @@ def cmd_export(cfg, df, world=None):
 
 
 def cmd_validate(cfg, df):
-    data = run_data_protocols(df)
+    data = run_data_protocols(df, cfg)
     exp = run_exporter_checks(df, cfg, cfg["output"]["dir"])
     report = {"data": data, "exporters": exp}
     json.dump(report, open(os.path.join(cfg["output"]["dir"], "validation_report.json"), "w"), indent=2, default=float)
@@ -56,6 +56,9 @@ def cmd_validate(cfg, df):
     print(f"P3 label independence:  {p3['pass']} (same-cluster AUC {p3['same_cluster_auc']:.3f})")
     print(f"full-model AUC:         {data['full_model_auc']:.4f} (logistic)")
     print(f"gradient-boosted AUC:   {data['gbm_auc']:.4f}")
+    if "coef_recovery" in data:
+        print(f"coefficient recovery:   r = {data['coef_recovery']['correlation']:.3f} "
+              f"(recovered vs true generating weights)")
     print(f"exporters: physical_ai learnable={exp['physical_ai']['learnable']}, "
           f"social_sim reproduced={exp['social_sim']['reproduced']}, "
           f"bdt counterfactual direction={exp['bdt']['direction_correct']}")

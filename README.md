@@ -68,10 +68,13 @@ print(twin.counterfactual(aid, {"req_urgency": 0.5, "tie_strength": 0.6}))
 | Same-cluster-only AUC (P3) | 0.577 |
 | Leakage-free logistic model AUC | 0.840 |
 | Leakage-free gradient-boosted (HistGradientBoosting) AUC | 0.846 |
+| Coefficient recovery (correlation, recovered vs true weights) | 0.766 |
 | Counterfactual urgency +0.3 | action rate 31.2% to 37.4% |
 | Exporter sanity checks | all pass |
 
 Both models use the same state features and the same request-level held-out split. On small worlds (for example 600 members, 300 posts) the logistic model matches or slightly beats the boosted trees, because the generator is close to logistic and the training set is small.
+
+Coefficient recovery fits an unregularized logistic model on the six generating-equation terms that can be rebuilt from the state (latent cooperativeness, urgency x sensitivity, tie x sensitivity, time match x sensitivity, network position, topic fit) and correlates the fitted coefficients with the generator's true weights. Cooperativeness, urgency and tie are recovered close to their true values. The network-position coefficient comes out negative: the decaying load term is not in the state, and well-connected members are exposed more often and carry more load, so the network-position term absorbs the omitted load effect. The check is reported in `validation_report.json` under `data.coef_recovery` and is skipped for ingested real data, which lacks the generator's latent features.
 
 These numbers describe the synthetic world, whose generator is built to have these properties. They show that the pipeline preserves the properties end to end; they are not claims about real human behavior.
 

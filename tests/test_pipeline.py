@@ -6,7 +6,7 @@ import pytest
 
 from cbpipe import (YorosixWorld, events_to_frame, assert_no_leak, load_config,
                     physical_ai_export, social_sim_export, bdt_export, TwinRegistry,
-                    run_data_protocols, run_exporter_checks)
+                    run_data_protocols, run_exporter_checks, coefficient_recovery)
 
 
 @pytest.fixture(scope="module")
@@ -47,6 +47,19 @@ def test_gbm_auc_reported(small):
     r = run_data_protocols(df)
     assert 0.75 < r["gbm_auc"] <= 1.0
     assert abs(r["gbm_auc"] - r["full_model_auc"]) < 0.05
+
+
+def test_coefficient_recovery(small):
+    # The logistic model fit on the generating terms should recover the true weights:
+    # positive correlation overall, and the strongly identified terms keep sign and rough size.
+    cfg, _, df = small
+    r = coefficient_recovery(df, cfg)
+    assert r["correlation"] > 0.5
+    for term in ("latent_coop", "urgency", "tie"):
+        assert r["recovered"][term] > 0
+        assert abs(r["recovered"][term] - r["true"][term]) < 0.6
+    assert run_data_protocols(df, cfg)["coef_recovery"]["correlation"] == pytest.approx(r["correlation"])
+    assert "coef_recovery" not in run_data_protocols(df)
 
 
 def test_counterfactual_raises_action_rate(small):
